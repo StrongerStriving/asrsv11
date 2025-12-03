@@ -1,0 +1,443 @@
+import React, { useState, useRef } from 'react';
+import { ClipboardCheck, AlertCircle, CheckCircle2, FileText, ChevronRight, RefreshCw, Printer } from 'lucide-react';
+
+const ASRS_DATA = [
+  // PART A
+  {
+    id: 1,
+    part: 'A',
+    question: "Bao nhiêu lần bạn gặp khó khăn trong việc hoàn thành các chi tiết của một dự án, khi mà các phần khó khăn nhất đã làm xong?",
+    threshold: 2 // 0: Never, 1: Rarely, 2: Sometimes, 3: Often, 4: Very Often. Threshold 2 means >= Sometimes is a hit.
+  },
+  {
+    id: 2,
+    part: 'A',
+    question: "Bao nhiêu lần bạn gặp khó khăn trong việc sắp xếp thứ tự các công việc cần làm khi thực hiện một nhiệm vụ đòi hỏi sự tổ chức?",
+    threshold: 2
+  },
+  {
+    id: 3,
+    part: 'A',
+    question: "Bao nhiêu lần bạn gặp vấn đề trong việc nhớ các cuộc hẹn hoặc các việc phải làm?",
+    threshold: 2
+  },
+  {
+    id: 4,
+    part: 'A',
+    question: "Khi có một công việc đòi hỏi nhiều tư duy, bao nhiêu lần bạn né tránh hoặc trì hoãn bắt đầu làm?",
+    threshold: 3 // Threshold 3 means >= Often is a hit.
+  },
+  {
+    id: 5,
+    part: 'A',
+    question: "Bao nhiêu lần bạn cử động tay chân liên hồi hoặc vặn vẹo khi phải ngồi lâu một chỗ?",
+    threshold: 3
+  },
+  {
+    id: 6,
+    part: 'A',
+    question: "Bao nhiêu lần bạn cảm thấy hoạt động quá mức hoặc cảm thấy bắt buộc phải làm việc gì đó như thể được gắn động cơ?",
+    threshold: 3
+  },
+  // PART B
+  {
+    id: 7,
+    part: 'B',
+    question: "Bao nhiêu lần bạn mắc lỗi cẩu thả khi phải làm một dự án chán ngắt hoặc khó khăn?",
+    threshold: 3
+  },
+  {
+    id: 8,
+    part: 'B',
+    question: "Bao nhiêu lần bạn gặp khó khăn trong việc duy trì sự chú ý khi đang làm một công việc chán ngắt hoặc lặp đi lặp lại?",
+    threshold: 3
+  },
+  {
+    id: 9,
+    part: 'B',
+    question: "Bao nhiêu lần bạn gặp khó khăn trong việc tập trung nghe người khác nói, ngay cả khi người đó đang nói trực tiếp với bạn?",
+    threshold: 2
+  },
+  {
+    id: 10,
+    part: 'B',
+    question: "Bao nhiêu lần bạn để thất lạc hoặc gặp khó khăn khi tìm kiếm đồ đạc ở nhà hay ở cơ quan?",
+    threshold: 3
+  },
+  {
+    id: 11,
+    part: 'B',
+    question: "Bao nhiêu lần bạn bị xao nhãng bởi các hoạt động hay tiếng ồn xung quanh?",
+    threshold: 3
+  },
+  {
+    id: 12,
+    part: 'B',
+    question: "Bao nhiêu lần bạn rời bỏ chỗ ngồi trong các cuộc họp hoặc trong các tình huống mà người ta mong đợi bạn ngồi yên một chỗ?",
+    threshold: 2
+  },
+  {
+    id: 13,
+    part: 'B',
+    question: "Bao nhiêu lần bạn cảm thấy bồn chồn hoặc bứt rứt?",
+    threshold: 3
+  },
+  {
+    id: 14,
+    part: 'B',
+    question: "Bao nhiêu lần bạn gặp khó khăn trong việc giữ yên lặng khi muốn nghỉ ngơi hoặc thư giãn?",
+    threshold: 3
+  },
+  {
+    id: 15,
+    part: 'B',
+    question: "Bao nhiêu lần bạn cảm thấy mình nói quá nhiều khi tham gia vào các giao tiếp xã hội?",
+    threshold: 3
+  },
+  {
+    id: 16,
+    part: 'B',
+    question: "Khi đang nói chuyện, bao nhiêu lần bạn nói chêm vào hoặc tự kết thúc câu nói của người khác trước khi họ kịp làm điều đó?",
+    threshold: 3
+  },
+  {
+    id: 17,
+    part: 'B',
+    question: "Bao nhiêu lần bạn gặp khó khăn trong việc chờ đến lượt mình trong các tình huống đòi hỏi sự chờ đợi?",
+    threshold: 3
+  },
+  {
+    id: 18,
+    part: 'B',
+    question: "Bao nhiêu lần bạn ngắt lời người khác khi họ đang bận rộn?",
+    threshold: 3
+  }
+];
+
+const OPTIONS = [
+  { value: 0, label: "Không bao giờ" },
+  { value: 1, label: "Hiếm khi" },
+  { value: 2, label: "Thỉnh thoảng" },
+  { value: 3, label: "Thường xuyên" },
+  { value: 4, label: "Rất thường xuyên" }
+];
+
+const App = () => {
+  const [started, setStarted] = useState(false);
+  const [answers, setAnswers] = useState({});
+  const [showResult, setShowResult] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  // Scroll to top when changing steps
+  const topRef = useRef(null);
+
+  const handleStart = () => {
+    setStarted(true);
+    setTimeout(() => topRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  };
+
+  const handleOptionSelect = (questionId, value) => {
+    setAnswers(prev => ({ ...prev, [questionId]: value }));
+  };
+
+  const isCurrentGroupComplete = () => {
+    const startIdx = currentStep * 6;
+    const endIdx = Math.min(startIdx + 6, ASRS_DATA.length);
+    for (let i = startIdx; i < endIdx; i++) {
+      if (answers[ASRS_DATA[i].id] === undefined) return false;
+    }
+    return true;
+  };
+
+  const handleNext = () => {
+    if ((currentStep + 1) * 6 >= ASRS_DATA.length) {
+      calculateResult();
+    } else {
+      setCurrentStep(prev => prev + 1);
+      topRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const calculateResult = () => {
+    setShowResult(true);
+    topRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const resetQuiz = () => {
+    setAnswers({});
+    setShowResult(false);
+    setCurrentStep(0);
+    setStarted(false);
+  };
+
+  // Logic Scoring
+  const getScore = () => {
+    let partAScore = 0;
+    let partBScore = 0;
+    
+    ASRS_DATA.forEach(q => {
+      const userVal = answers[q.id] || 0;
+      if (userVal >= q.threshold) {
+        if (q.part === 'A') partAScore++;
+        else partBScore++;
+      }
+    });
+
+    // ASRS v1.1 Criteria: 4 or more marks in Part A indicates highly consistent with ADHD
+    const isHighRisk = partAScore >= 4;
+    
+    return { partAScore, partBScore, isHighRisk };
+  };
+
+  if (!started) {
+    return (
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-800 p-4 flex items-center justify-center">
+        <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-blue-600 p-8 text-center">
+            <ClipboardCheck className="w-16 h-16 text-white mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-white mb-2">Sàng Lọc ADHD Người Lớn</h1>
+            <p className="text-blue-100 text-lg">ASRS-v1.1 Symptom Checklist</p>
+          </div>
+          
+          <div className="p-8 space-y-6">
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r">
+              <h3 className="font-semibold text-blue-800 mb-1">Giới thiệu</h3>
+              <p className="text-slate-600 text-sm leading-relaxed">
+                Công cụ này được phát triển dựa trên Bảng kiểm Tự báo cáo về ADHD ở người lớn (ASRS v1.1) của Tổ chức Y tế Thế giới (WHO). Đây là công cụ hỗ trợ sàng lọc sơ bộ, giúp xác định các triệu chứng của Rối loạn tăng động giảm chú ý ở người trưởng thành.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-semibold text-slate-700">Hướng dẫn:</h4>
+              <ul className="list-disc pl-5 space-y-2 text-slate-600">
+                <li>Bài kiểm tra gồm <strong>18 câu hỏi</strong>.</li>
+                <li>Hãy chọn phương án mô tả đúng nhất cảm giác và hành vi của bạn trong <strong>6 tháng qua</strong>.</li>
+                <li>Kết quả không phải là chẩn đoán y khoa nhưng là cơ sở quan trọng để bác sĩ đánh giá.</li>
+              </ul>
+            </div>
+
+            <button 
+              onClick={handleStart}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 shadow-lg"
+            >
+              Bắt đầu Sàng lọc <ChevronRight className="w-5 h-5" />
+            </button>
+            
+            <p className="text-xs text-center text-slate-400 mt-4">
+              © WHO & Workgroup on Adult ADHD. Phiên bản tiếng Việt dùng cho mục đích tham khảo.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showResult) {
+    const { partAScore, partBScore, isHighRisk } = getScore();
+    
+    return (
+      <div ref={topRef} className="min-h-screen bg-slate-50 font-sans text-slate-800 p-4 md:p-8">
+        <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden print:shadow-none print:max-w-none">
+          {/* Result Header */}
+          <div className={`p-8 text-center ${isHighRisk ? 'bg-amber-50' : 'bg-green-50'}`}>
+            {isHighRisk ? (
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-amber-100 mb-4">
+                <AlertCircle className="w-10 h-10 text-amber-600" />
+              </div>
+            ) : (
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-4">
+                <CheckCircle2 className="w-10 h-10 text-green-600" />
+              </div>
+            )}
+            
+            <h2 className="text-2xl font-bold mb-2 text-slate-800">Kết quả Sàng lọc</h2>
+            <div className="text-4xl font-extrabold mb-2 text-slate-900">
+              {isHighRisk ? "NGUY CƠ CAO" : "ÍT CÓ KHẢ NĂNG"}
+            </div>
+            <p className="text-slate-600 max-w-lg mx-auto">
+              Dựa trên tiêu chuẩn sàng lọc ASRS v1.1 (Phần A)
+            </p>
+          </div>
+
+          {/* Detailed Scores */}
+          <div className="p-8 border-b border-slate-100">
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                <h4 className="font-semibold text-slate-700 mb-2">Phần A (Sàng lọc chính)</h4>
+                <div className="flex items-end gap-2">
+                  <span className="text-3xl font-bold text-blue-600">{partAScore}</span>
+                  <span className="text-slate-500 mb-1">/ 6 điểm quan trọng</span>
+                </div>
+                <p className="text-sm text-slate-500 mt-2">
+                  Điểm ≥ 4 gợi ý các triệu chứng rất phù hợp với ADHD ở người lớn.
+                </p>
+              </div>
+              <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                <h4 className="font-semibold text-slate-700 mb-2">Phần B (Triệu chứng thêm)</h4>
+                <div className="flex items-end gap-2">
+                  <span className="text-3xl font-bold text-slate-600">{partBScore}</span>
+                  <span className="text-slate-500 mb-1">/ 12 điểm quan trọng</span>
+                </div>
+                <p className="text-sm text-slate-500 mt-2">
+                  Cung cấp thêm thông tin về mức độ ảnh hưởng của triệu chứng.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Clinical Interpretation & Recommendation */}
+          <div className="p-8 space-y-6">
+            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <FileText className="w-6 h-6 text-blue-600" />
+              Kết luận & Khuyến nghị
+            </h3>
+
+            <div className="prose prose-slate max-w-none">
+              {isHighRisk ? (
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r">
+                  <p className="font-medium text-amber-900 mb-2">Kết quả của bạn có sự nhất quán cao với các triệu chứng ADHD.</p>
+                  <p className="text-slate-700 mb-4">
+                    Theo thang đo ASRS v1.1, việc có từ 4 mục trở lên được đánh dấu ở Phần A cho thấy khả năng cao bạn đang gặp các vấn đề liên quan đến Tăng động - Giảm chú ý.
+                  </p>
+                  <strong className="block text-slate-900 mb-2">Khuyến nghị xử trí:</strong>
+                  <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                    <li>Bạn nên đặt lịch khám với <strong>Bác sĩ chuyên khoa Tâm thần</strong> hoặc chuyên gia tâm lý lâm sàng để được đánh giá sâu hơn.</li>
+                    <li>Hãy mang kết quả này theo khi đi khám.</li>
+                    <li>Chuẩn bị sẵn thông tin về các vấn đề này đã ảnh hưởng đến công việc, mối quan hệ và cuộc sống của bạn như thế nào (đặc biệt là các triệu chứng đã xuất hiện từ nhỏ hay chưa).</li>
+                  </ul>
+                </div>
+              ) : (
+                <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-r">
+                  <p className="font-medium text-green-900 mb-2">Hiện tại ít thấy các dấu hiệu đặc trưng của ADHD.</p>
+                  <p className="text-slate-700 mb-4">
+                    Kết quả dưới 4 điểm ở Phần A cho thấy các triệu chứng của bạn không điển hình cho ADHD người lớn theo thang đo này.
+                  </p>
+                  <strong className="block text-slate-900 mb-2">Khuyến nghị:</strong>
+                  <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                    <li>Tuy nhiên, nếu bạn vẫn cảm thấy khó tập trung hoặc bồn chồn, có thể do các nguyên nhân khác như: căng thẳng, lo âu, thiếu ngủ, hoặc môi trường làm việc.</li>
+                    <li>Hãy theo dõi thêm sức khỏe tinh thần và điều chỉnh lối sống. Nếu triệu chứng gây ảnh hưởng lớn đến cuộc sống, hãy tham khảo ý kiến bác sĩ.</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 mt-8 pt-6 border-t border-slate-100 print:hidden">
+              <button 
+                onClick={() => window.print()}
+                className="flex-1 bg-slate-800 hover:bg-slate-900 text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <Printer className="w-5 h-5" /> In Kết quả / Lưu PDF
+              </button>
+              <button 
+                onClick={resetQuiz}
+                className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-5 h-5" /> Làm lại Sàng lọc
+              </button>
+            </div>
+          </div>
+        </div>
+        <p className="text-center text-slate-400 text-xs mt-8 pb-4 print:hidden">
+          Lưu ý: Ứng dụng này chỉ mang tính chất sàng lọc, không thay thế chẩn đoán y khoa chính thức.
+        </p>
+      </div>
+    );
+  }
+
+  // Question Rendering Logic
+  const startIdx = currentStep * 6;
+  const currentQuestions = ASRS_DATA.slice(startIdx, startIdx + 6);
+  const isLastStep = (currentStep + 1) * 6 >= ASRS_DATA.length;
+
+  return (
+    <div ref={topRef} className="min-h-screen bg-slate-50 font-sans text-slate-800 p-4 md:p-8">
+      <div className="max-w-3xl mx-auto">
+        {/* Header Small */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2 text-blue-700 font-bold">
+            <ClipboardCheck className="w-6 h-6" />
+            <span>ASRS v1.1 Screening</span>
+          </div>
+          <div className="text-sm font-medium text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm">
+            Trang {currentStep + 1} / {Math.ceil(ASRS_DATA.length / 6)}
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full bg-slate-200 h-2 rounded-full mb-8 overflow-hidden">
+          <div 
+            className="bg-blue-600 h-full transition-all duration-500 ease-out"
+            style={{ width: `${((startIdx) / ASRS_DATA.length) * 100}%` }}
+          ></div>
+        </div>
+
+        {/* Questions List */}
+        <div className="space-y-6">
+          {currentQuestions.map((q, idx) => (
+            <div key={q.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md">
+              <div className="flex gap-4">
+                <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 font-bold rounded-lg text-sm">
+                  {q.id}
+                </span>
+                <div className="w-full">
+                  <p className="text-lg font-medium text-slate-800 mb-4">
+                    {q.question}
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                    {OPTIONS.map((opt) => {
+                      const isSelected = answers[q.id] === opt.value;
+                      // Logic to determine visual intensity based on standard ASRS grey boxes (threshold)
+                      // Just for UI feedback: highlights if selected answer is "symptomatic"
+                      const isSymptomatic = isSelected && opt.value >= q.threshold;
+
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleOptionSelect(q.id, opt.value)}
+                          className={`
+                            relative py-3 px-2 rounded-lg text-sm font-medium transition-all duration-200 border
+                            ${isSelected 
+                              ? (isSymptomatic ? 'bg-amber-50 border-amber-500 text-amber-900' : 'bg-blue-50 border-blue-500 text-blue-900') 
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-slate-50'
+                            }
+                          `}
+                        >
+                          {opt.label}
+                          {isSelected && (
+                            <div className="absolute top-1 right-1">
+                              <CheckCircle2 className={`w-3 h-3 ${isSymptomatic ? 'text-amber-500' : 'text-blue-500'}`} />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Navigation */}
+        <div className="mt-8 flex justify-end">
+          <button
+            onClick={handleNext}
+            disabled={!isCurrentGroupComplete()}
+            className={`
+              flex items-center gap-2 py-3 px-8 rounded-lg font-bold text-lg transition-all
+              ${isCurrentGroupComplete() 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg transform hover:-translate-y-1' 
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'}
+            `}
+          >
+            {isLastStep ? "Xem Kết Quả" : "Tiếp theo"}
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
